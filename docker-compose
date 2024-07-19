@@ -1,0 +1,160 @@
+services:
+  tracker-0:
+    container_name: tracker-0
+    image: 0xsarox/airchain-tracker
+    command:
+      - "/bin/bash"
+      - "-c"
+      - |
+        if [ ! -f $HOME/.tracks/config/sequencer.toml ]; then
+          echo "initializing the tracker..."
+          go run cmd/main.go init --daRpc "disperser-holesky.eigenda.xyz" --daKey "<eigen-wallet-address>" --daType "eigen" --moniker "mySequencer" --stationRpc "http://evmos-0:8545" --stationAPI "http://evmos-0:8545" --stationType "evm"      
+
+            echo ""
+            echo "importing the key..."
+            go run cmd/main.go keys import  --accountName mySequencerAccount --accountPath $HOME/.tracks/junction-accounts/keys --mnemonic '<your-mnemonic-phrase>'
+            echo "running the prover..."       
+            go run cmd/main.go prover v1EVM
+
+            NODE_ID=$(sed -n 's/node_id = \"\([^ ]*\)\".*/\1/p' ~/.tracks/config/sequencer.toml)
+            echo "the NodeID is $${NODE_ID}"
+            echo ""
+            echo "creating the station"       
+            go run cmd/main.go create-station --accountName mySequencerAccount --accountPath $HOME/.tracks/junction-accounts/keys --jsonRPC "https://airchains-rpc.henry3222.xyz/" --info "EVM Track" --tracks <tracker-wallet-address> --bootstrapNode "/ip4/127.0.0.1/tcp/2300/p2p/$${NODE_ID}"
+        fi
+
+        if [ -f $HOME/need_rollback ] && [ $(cat $HOME/need_rollback) = 'true' ]; then 
+          echo "Starting rollback..."
+          go run cmd/main.go rollback; 
+          go run cmd/main.go rollback; 
+          go run cmd/main.go rollback; 
+        fi
+            echo "running the station"
+            go run cmd/main.go start
+    volumes:
+      - ./trackers/tracker-0:$HOME
+    ports:
+      - "2400:2300"
+    depends_on:
+      evmos-0:
+        condition: service_healthy
+
+  evmos-0:
+    container_name: evmos-0
+    image: 0xsarox/airchain-evmos
+    command:
+      - "/bin/bash"
+      - "-c"
+      - |
+        if [ ! -f $HOME/.evmosd/config/config.toml ]; then      
+          echo "Running local setup script..."
+          ./scripts/local-setup.sh
+          sed -i -e 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/' -e 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/' $HOME/.evmosd/config/app.toml 
+          ./scripts/local-keys.sh > $HOME/evmos.key
+        fi  
+
+          echo "Starting the application..."
+          ./scripts/local-start.sh
+    volumes:
+      - ./rollups/evmos-0:$HOME
+    working_dir: /app
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "-X",
+          "POST",
+          "-H",
+          "Content-Type: application/json",
+          "-d",
+          '{"jsonrpc": "2.0", "id": 42, "method": "web3_clientVersion", "params": []}',
+          "http://localhost:8545"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 50
+    ports:
+      - "17546:8546"
+      - "17545:8545"
+
+  tracker-1:
+    container_name: tracker-1
+    image: 0xsarox/airchain-tracker
+    command:
+      - "/bin/bash"
+      - "-c"
+      - |
+        if [ ! -f $HOME/.tracks/config/sequencer.toml ]; then
+          echo "initializing the tracker..."
+          go run cmd/main.go init --daRpc "disperser-holesky.eigenda.xyz" --daKey "<eigen-wallet-address>" --daType "eigen" --moniker "mySequencer" --stationRpc "http://evmos-1:8545" --stationAPI "http://evmos-1:8545" --stationType "evm"      
+
+            echo ""
+            echo "importing the key..."
+            go run cmd/main.go keys import  --accountName mySequencerAccount --accountPath $HOME/.tracks/junction-accounts/keys --mnemonic '<your-mnemonic-phrase>'
+            echo "running the prover..."       
+            go run cmd/main.go prover v1EVM
+
+            NODE_ID=$(sed -n 's/node_id = \"\([^ ]*\)\".*/\1/p' ~/.tracks/config/sequencer.toml)
+            echo "the NodeID is $${NODE_ID}"
+            echo ""
+            echo "creating the station"       
+            go run cmd/main.go create-station --accountName mySequencerAccount --accountPath $HOME/.tracks/junction-accounts/keys --jsonRPC "https://airchains-rpc.henry3222.xyz/" --info "EVM Track" --tracks <tracker-wallet-address> --bootstrapNode "/ip4/127.0.0.1/tcp/2300/p2p/$${NODE_ID}"
+        fi
+
+        if [ -f $HOME/need_rollback ] && [ $(cat $HOME/need_rollback) = 'true' ]; then 
+          echo "Starting rollback..."
+          go run cmd/main.go rollback; 
+          go run cmd/main.go rollback; 
+          go run cmd/main.go rollback; 
+        fi
+            echo "running the station"
+            go run cmd/main.go start
+    volumes:
+      - ./trackers/tracker-1:$HOME
+    ports:
+      - "2500:2300"
+    depends_on:
+      evmos-1:
+        condition: service_healthy
+
+  evmos-1:
+    container_name: evmos-1
+    image: 0xsarox/airchain-evmos
+    command:
+      - "/bin/bash"
+      - "-c"
+      - |
+        if [ ! -f $HOME/.evmosd/config/config.toml ]; then      
+          echo "Running local setup script..."
+          ./scripts/local-setup.sh
+          sed -i -e 's/address = "127.0.0.1:8545"/address = "0.0.0.0:8545"/' -e 's/ws-address = "127.0.0.1:8546"/ws-address = "0.0.0.0:8546"/' $HOME/.evmosd/config/app.toml 
+          ./scripts/local-keys.sh > $HOME/evmos.key
+        fi  
+
+          echo "Starting the application..."
+          ./scripts/local-start.sh
+    volumes:
+      - ./rollups/evmos-1:$HOME
+    working_dir: /app
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "-X",
+          "POST",
+          "-H",
+          "Content-Type: application/json",
+          "-d",
+          '{"jsonrpc": "2.0", "id": 42, "method": "web3_clientVersion", "params": []}',
+          "http://localhost:8545"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 50
+    ports:
+      - "18546:8546"
+      - "18545:8545"
